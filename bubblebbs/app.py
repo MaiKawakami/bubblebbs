@@ -241,7 +241,7 @@ def edit_trip_meta(tripcode: str):
 # what if making reply but reply is a comment?!
 @app.route("/threads/new", methods=['GET', 'POST'])
 # FIXME: set back to 10
-@limiter.limit("30 per hour")
+@limiter.limit("5 per hour")
 def new_thread():
     """Provide form for new thread on GET, create new thread on POST.
 
