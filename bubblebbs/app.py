@@ -1,3 +1,4 @@
+# TODO: rename this view.py? put app factory in another file?
 import os
 import random
 
@@ -7,6 +8,7 @@ from flask import (
 from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
 from flask_limiter import Limiter
+from flask_recaptcha import ReCaptcha
 from flask_limiter.util import get_remote_address
 from colorhash import ColorHash
 from pymojihash.pymojihash import hash_to_emoji
@@ -20,6 +22,7 @@ from . import templating
 
 app = Flask(__name__)
 app.config.from_object(config)
+recaptcha = ReCaptcha(app=app)
 app.jinja_env.globals.update(
     since_bumptime=templating.since_bumptime,
     get_pages=templating.get_pages,
@@ -146,6 +149,8 @@ def new_reply():
     if ban:
         ban_message = 'Your IP %s was banned: %s' % (ban.address, ban.reason)
         return render_template('errors.html', errors=[ban_message])
+    elif not recaptcha.verify():
+        return render_template('errors.html', errors=['Captcha failed!'])
 
     reply_to = request.form.get('reply_to')
     form = forms.NewPostForm()
@@ -222,20 +227,26 @@ def edit_trip_meta(tripcode: str):
 # FIXME must check if conflicting slug...
 # what if making reply but reply is a comment?!
 @app.route("/threads/new", methods=['GET', 'POST'])
-@limiter.limit("5 per hour")
+@limiter.limit("10 per hour")
 def new_thread():
     """Provide form for new thread on GET, create new thread on POST.
 
     """
 
     if request.method == 'GET':
-        return render_template('new-thread.html', form=forms.NewPostForm())
+        return render_template(
+            'new-thread.html',
+            form=forms.NewPostForm(),
+        )
     elif request.method == 'POST':
+        # TODO: this first bit is a re-used pattern
         # First check if IP banned
         ban = moderate.ban_lookup(request)
         if ban:
             ban_message = 'Your IP %s was banned: %s' % (ban.address, ban.reason)
             return render_template('errors.html', errors=[ban_message])
+        elif not recaptcha.verify():
+            return render_template('errors.html', errors=['Captcha failed!'])
 
         reply_to = request.form.get('reply_to')
         form = forms.NewPostForm()
